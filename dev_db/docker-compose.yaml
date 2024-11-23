@@ -1,0 +1,38 @@
+volumes:
+  pgdata:
+  pgadmin-data:
+  esdata:
+  kibana-data:
+
+networks:
+  movies_dev_db_network:
+
+services:
+  postgres-db:
+    image: postgres
+    container_name: movies-postgres-db
+    environment:
+      POSTGRES_DB: movies_dev_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    networks:
+      - movies_dev_db_network
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: movies-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: postgres@example.com
+      PGADMIN_DEFAULT_PASSWORD: postgres
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres-db
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    networks:
+      - movies_dev_db_network

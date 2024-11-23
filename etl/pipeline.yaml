@@ -1,0 +1,41 @@
+tasks:
+  - source: gather_imdb_titles.py
+    name: gather_imdb_titles
+    product: 
+      nb: output/gather_imdb_titles.ipynb
+      product: etl/datasets/imdb_titles.tsv
+
+  - source: gather_imdb_ratings.py
+    name: gather_imdb_ratings
+    product: 
+      nb: output/gather_imdb_ratings.ipynb
+      product: etl/datasets/imdb_ratings.tsv
+
+  - source: gather_netflix_titles.py
+    name: gather_netflix_titles
+    product: 
+      nb: output/gather_netflix_titles.ipynb
+      product: etl/datasets/netflix_originals.json
+
+  - source: scrape_headings.py
+    name: scrape_headings
+    product: 
+      nb: output/scrape_headings.ipynb
+      product: etl/datasets/netflix_cancelled_shows.csv
+
+  - source: clean_imdb_titles.py
+    name: clean_imdb_titles
+    product:
+      nb: output/clean_imdb_titles.ipynb
+      product: etl/datasets/imdb_titles_cleaned.csv
+
+  - source: clean_netflix_titles.py
+    name: clean_netflix_titles
+    product:
+      nb: output/clean_netflix_titles.ipynb
+      product: etl/datasets/netflix_originals_cleaned.json
+  
+  - source: load_database.py
+    name: load_database
+    product:
+      nb: output/load_database.ipynb
