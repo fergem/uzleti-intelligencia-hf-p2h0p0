@@ -5,21 +5,21 @@ upstream = ["clean_netflix_titles", "clean_imdb_titles"]
 # -
 
 import time
-from sqlalchemy import BigInteger, create_engine, Column, Integer, String, Float, ForeignKey, Table, Boolean
+import pandas as pd
+
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
-import pandas as pd
+from sqlalchemy import BigInteger, create_engine, Column, Integer, String, Float, ForeignKey, Table, Boolean
+
 
 Base = declarative_base()
 
-# +
 movie_categories = Table(
     'movie_categories', Base.metadata,
     Column('movie_id', Integer, ForeignKey('movies.id'), primary_key=True),
     Column('category_id', Integer, ForeignKey('categories.id'), primary_key=True)
 )
 
-# +
 class Movie(Base):
     __tablename__ = 'movies'
     id = Column(Integer, primary_key=True)
@@ -32,7 +32,6 @@ class Movie(Base):
     cancelled = Column(Boolean, default=False)
     categories = relationship('Category', secondary=movie_categories, back_populates='movies')
 
-# +
 class Category(Base):
     __tablename__ = 'categories'
     id = Column(Integer, primary_key=True)
@@ -46,7 +45,6 @@ class Company(Base):
     name = Column(String, nullable=False)
     stock_prices = relationship('StockPrice', back_populates='company')
 
-# StockPrice table model
 class StockPrice(Base):
     __tablename__ = 'stock_prices'
     id = Column(Integer, primary_key=True)
@@ -156,12 +154,11 @@ def load_imdb_data(session, netflix_originals, category_mapping):
                     title=row['primaryTitle'].strip(),
                     type=row['titleType'],
                     released_year=start_year,
+                    runtime_minutes=runtime_minutes,
                     imdb_rating=imdb_rating,
                     netflix_id=None,
                     cancelled=False
                 )
-            
-            movies_to_insert.append(movie)
 
             categories_raw = row.get('genres', '')
             categories = [cat.strip() for cat in categories_raw.split(',') if cat.strip()]
@@ -171,10 +168,12 @@ def load_imdb_data(session, netflix_originals, category_mapping):
                     categories_to_insert.append(category_obj)
                     category_mapping[category] = category_obj
                 movie.categories.append(category_mapping[category])
-        
 
-        session.bulk_save_objects(categories_to_insert, return_defaults=False)
-        session.bulk_save_objects(movies_to_insert, return_defaults=False)
+            movies_to_insert.append(movie)
+
+
+        session.add_all(categories_to_insert)
+        session.add_all(movies_to_insert)
         session.commit()
         print(f"Chunk {chunk_number} processed in {time.time() - chunk_start_time:.2f} seconds.")
 
@@ -202,10 +201,11 @@ def load_unmatched_netflix_titles(session, netflix_originals, category_mapping):
                 categories_to_insert.append(category_obj)
                 category_mapping[category] = category_obj
             movie.categories.append(category_mapping[category])
+            
         movies_to_insert.append(movie)
 
-    session.bulk_save_objects(categories_to_insert, return_defaults=False)
-    session.bulk_save_objects(movies_to_insert, return_defaults=False)
+    session.add_all(categories_to_insert)
+    session.add_all(movies_to_insert)
     session.commit()
     print(f"Missing titles processed in {time.time() - missing_titles_start_time:.2f} seconds.")
 

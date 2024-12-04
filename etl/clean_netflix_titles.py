@@ -9,6 +9,59 @@ import re
 import unicodedata
 import pandas as pd
 
+def normalize_genre(genre):
+    genres_parsed = [g.strip() for g in genre.split(",")] if genre else []
+    
+    genre_mapping = {
+        'Drama': ['Drama', 'Dramas'],
+        'Comedy': ['Comedy', 'Stand-up Comedy', 'Stand-up', 'Standup'],
+        'Action': ['Action'],
+        'Romance': ['Romance', 'Romantic'],
+        'Sci-Fi/Fantasy': ['Sci-Fi', 'Sci-fi', 'Fantasy'],
+        'Thriller': ['Thriller', 'Thrillers'],
+        'Horror': ['Horror'],
+        'Mystery': ['Mystery'],
+        'Crime': ['Crime', 'True Crime', 'True-crime', 'Con-Artist'],
+        'Documentary': ['Documentary', 'Docuseries', 'Docudrama', 'Behind the Scenes', 'Making-of', 'Making-Of'],
+        'Biographical': ['Biography'],
+        'Historical': ['History', 'Historical'],
+        'Family/Children': ['Family', 'Kids', 'Children'],
+        'Animation': ['Animation', 'Animated', 'Cartoon', 'Anime'],
+        'Adventure': ['Adventure'],
+        'Teen': ['Teen'],
+        'Medical': ['Medical'],
+        'LGBTQ': ['LGBTQ'],
+        'Stand-up Comedy': ['Stand-up', 'Standup', 'Stand-up Special'],
+        'Sports': ['Sport', 'Boxing', 'Sports'],
+        'Reality TV': ['Reality-TV', 'Reality TV', 'Reality'],
+        'Game Show': ['Game-Show'],
+        'Talk Show': ['Talk Show', 'Talk Shows'],
+        'Variety': ['Variety'],
+        'Political': ['Political'],
+        'Music': ['Music'],
+        'Specials': ['Special', 'Making-of', 'Behind-the-scenes'],
+        'Regional': ['Bollywood', 'Nollywood', 'Spanish', 'French', 'Latin American TV'],
+        'Food/Travel': ['Food', 'Travel'],
+        'Courtroom': ['Courtroom'],
+        'Movies/TV': ['Movies', 'TV'],
+        'Stories/BLM': ['Stories', 'BLM'],
+        'Zombie': ['Zombie'],
+        'Korean': ['Korean', 'K-Drama'],
+    }
+    
+    if not genres_parsed:
+        return 'Other'
+    
+    categories_of_genre = set()
+    
+    for category, keywords in genre_mapping.items():
+        for g in genres_parsed:
+            if g in keywords:
+                categories_of_genre.add(category)
+    
+    return ",".join(categories_of_genre) if categories_of_genre else "Other"
+
+
 FILE_TO_CLEAN_PATH = 'etl/datasets/netflix_originals.json'
 CLEANED_FILE_PATH = 'etl/datasets/netflix_originals_cleaned.json'
 netflix_canceled_shows_path = "etl/datasets/netflix_cancelled_shows.csv"
@@ -42,9 +95,11 @@ df['titlereleased'] = df.apply(
 )
 df['titlereleased'] = df['titlereleased'].apply(lambda x: x[:4] if isinstance(x, str) else x)
 
+df['category'] = df['category'].apply(normalize_genre)
+
 df['cancelled'] = df['title_cleaned'].apply(lambda x: x in cancelled_titles_set)
 df['type'] = df['type'].apply(lambda x: 'movie' if x == "Movie" else 'tvSeries' if x == "TV" else x)
 
 df.to_json(CLEANED_FILE_PATH, orient='records', indent=4, force_ascii=False)
 
-os.remove(FILE_TO_CLEAN_PATH)
+#os.remove(FILE_TO_CLEAN_PATH)
