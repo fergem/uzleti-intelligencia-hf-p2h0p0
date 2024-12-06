@@ -9,6 +9,10 @@ import re
 import unicodedata
 import pandas as pd
 
+FILE_PATH = 'etl/datasets/imdb_titles.tsv'
+RATINGS_FILE = 'etl/datasets/imdb_ratings.tsv'
+CLEANED_FILE_PATH = 'etl/datasets/imdb_titles_cleaned.csv'
+
 def normalize_genre(genre):
     genres_parsed = [g.strip() for g in genre.split(",")] if genre else []
     
@@ -61,48 +65,46 @@ def normalize_genre(genre):
     
     return ",".join(categories_of_genre) if categories_of_genre else "Other"
 
-
-file_path = 'etl/datasets/imdb_titles.tsv'
-ratings_file = 'etl/datasets/imdb_ratings.tsv'
-
 def normalize_and_clean_title(title):
     if not isinstance(title, str):
         return ""
     title = unicodedata.normalize('NFD', title).encode('ascii', 'ignore').decode('ascii')
     title = title.lower()
     title = re.sub(r'[^\w]', '', title)
-    title.strip()
+    title = title.strip()
     title = title.replace("theseries", "").replace("themovie", "")
     return title
 
+def clean_imdb_titles(file_path, ratings_file, cleaned_file_path):
+    df = pd.read_csv(file_path, sep='\t')
 
-cleaned_file_path = 'etl/datasets/imdb_titles_cleaned.csv'
+    # Remove unwanted types
+    unwanted_types = ['short', 'videoGame', 'tvEpisode', 'tvMiniSeries', 'tvSpecial', 'tvShort', 'tvMovie', 'video']
+    df = df[~df['titleType'].isin(unwanted_types)]
 
-df = pd.read_csv(file_path, sep='\t')
+    # Exclude unwanted genres
+    excluded_genres = ["Talk-Show", "Short", "News", "Sport"]
+    df = df[~df['genres'].str.contains("|".join(excluded_genres), na=False, case=False)]
+    df['genres'] = df['genres'].apply(normalize_genre)
 
-unwanted_types = ['short', 'videoGame', 'tvEpisode', 'tvMiniSeries', 'tvSpecial', 'tvShort', 'tvMovie', 'video']
-df = df[~df['titleType'].isin(unwanted_types)]
+    # Remove columns and rows with startYear < 1980 and normalize title
+    df = df[pd.to_numeric(df['startYear'], errors='coerce') >= 1980]
+    df = df.drop(columns=['originalTitle', 'isAdult', 'endYear'])
+    df['primaryTitle_cleaned'] = df['primaryTitle'].apply(normalize_and_clean_title)
 
-excluded_genres = ["Talk-Show", "Short", "News", "Sport"]
-df = df[~df['genres'].str.contains("|".join(excluded_genres), na=False, case=False)]
-df['genres'] = df['genres'].apply(normalize_genre)
+    ratings_df = pd.read_csv(ratings_file, sep='\t', dtype=str)
+    ratings_df = ratings_df.drop(columns=['numVotes'])
 
-df = df[pd.to_numeric(df['startYear'], errors='coerce') >= 1980]
+    # Merge with ratings data
+    imdb_data = pd.merge(df, ratings_df, on="tconst", how="left")
+    imdb_data = imdb_data.dropna()
+    imdb_data.to_csv(cleaned_file_path, sep=",", index=False)
+    
+    print(f"Cleaned data saved to {cleaned_file_path}")
 
-df = df.drop(columns=['originalTitle', 'isAdult', 'endYear'])
+def main():
+    clean_imdb_titles(FILE_PATH, RATINGS_FILE, CLEANED_FILE_PATH)
 
-# +
-df['primaryTitle_cleaned'] = df['primaryTitle'].apply(normalize_and_clean_title)
-# -
-
-
-ratings_df = pd.read_csv(ratings_file, sep='\t', dtype=str)
-ratings_df = ratings_df.drop(columns=['numVotes'])
-
-imdb_data = pd.merge(df, ratings_df, on="tconst", how="left")
-imdb_data = imdb_data.dropna()
-imdb_data.to_csv(cleaned_file_path, sep=",", index=False)
-
-#os.remove(file_path)
-#os.remove(ratings_file)
+if __name__ == "__main__":
+    main()
 

@@ -89,7 +89,7 @@ def get_genre_distribution(session, show_only_netflix, selected_tab):
     result = query.group_by(Category.name)\
                   .all()
 
-    return pd.DataFrame(result, columns=["Genre", "Movie Count"])
+    return pd.DataFrame(result, columns=["Genre", "Movie or TV Show Count"])
 
 def get_movies_with_imdb_rating(session, show_only_netflix, selected_tab):
     query = session.query(Movie.imdb_rating).filter(Movie.imdb_rating.isnot(None))\

@@ -17,6 +17,12 @@ tasks:
       nb: output/gather_netflix_titles.ipynb
       product: etl/datasets/netflix_originals.json
 
+  - source: gather_netflix_stock_data.py
+    name: gather_netflix_stock_data
+    product: 
+      nb: output/gather_netflix_stock_data.ipynb
+      product: etl/datasets/netflix_stock_data.json
+
   - source: scrape_headings.py
     name: scrape_headings
     product: 
@@ -34,6 +40,12 @@ tasks:
     product:
       nb: output/clean_netflix_titles.ipynb
       product: etl/datasets/netflix_originals_cleaned.json
+
+  - source: clean_netflix_stock_data.py
+    name: clean_netflix_stock_data
+    product:
+      nb: output/clean_netflix_stock_data.ipynb
+      product: etl/datasets/netflix_stock_data_cleaned.json
   
   - source: load_database.py
     name: load_database

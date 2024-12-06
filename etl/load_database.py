@@ -1,6 +1,6 @@
 # + tags=["parameters"]
 # declare a list tasks whose products you want to use as inputs
-upstream = ["clean_netflix_titles", "clean_imdb_titles"]
+upstream = ["clean_netflix_titles", "clean_imdb_titles", "clean_netflix_stock_data"]
 
 # -
 

@@ -1,0 +1,7 @@
+**/__pycache__/
+**/.vscode/
+**/.vnev/
+**/.pytest_cache/
+etl/etl
+etl/output
+etl/datasets

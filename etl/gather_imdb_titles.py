@@ -12,28 +12,33 @@ import shutil
 URL = "https://datasets.imdbws.com/title.basics.tsv.gz"
 OUTPUT_DIR = "etl/datasets"
 COMPRESSED_FILE = "title.basics.tsv.gz"
+EXTRACTED_FILE = os.path.join(OUTPUT_DIR, "imdb_titles.tsv")
 
+def create_output_dir(directory):
+    os.makedirs(directory, exist_ok=True)
+
+def download_file(url, file_path):
+    response = requests.get(url, stream=True)
+    response.raise_for_status()
+    with open(file_path, "wb") as file:
+        file.write(response.content)
+    print(f"Downloaded file to {file_path}")
+
+def extract_gzip_file(compressed_file, extracted_file):
+    with gzip.open(compressed_file, "rb") as f_in:
+        with open(extracted_file, "wb") as f_out:
+            shutil.copyfileobj(f_in, f_out)
+    print(f"Extracted file to {extracted_file}")
+
+def remove_file(file_path):
+    os.remove(file_path)
+    print(f"Removed temporary file: {file_path}")
 
 def download_and_extract():
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    
-    print("Downloading file...")
-    response = requests.get(URL, stream=True)
-    response.raise_for_status()
-    
-    with open(COMPRESSED_FILE, "wb") as file:
-        file.write(response.content)
-    print(f"Downloaded file to {COMPRESSED_FILE}")
-    
-    extracted_file_path = os.path.join(OUTPUT_DIR, "imdb_titles.tsv")
-    with gzip.open(COMPRESSED_FILE, "rb") as f_in:
-        with open(extracted_file_path, "wb") as f_out:
-            shutil.copyfileobj(f_in, f_out)
-    print(f"Extracted file to {extracted_file_path}")
-    
-    os.remove(COMPRESSED_FILE)
-    print(f"Removed temporary file: {COMPRESSED_FILE}")
-
+    create_output_dir(OUTPUT_DIR)
+    download_file(URL, COMPRESSED_FILE)
+    extract_gzip_file(COMPRESSED_FILE, EXTRACTED_FILE)
+    remove_file(COMPRESSED_FILE)
 
 if __name__ == "__main__":
     download_and_extract()

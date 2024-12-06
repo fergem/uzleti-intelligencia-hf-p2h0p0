@@ -1,19 +1,18 @@
-import datetime
 import dash
 from dash import html, dcc, callback, Input, Output
 import dash_mantine_components as dmc
 import numpy as np
-from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import train_test_split
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import tensorflow as tf
+from keras.api.models import Sequential
+from keras.api.layers import Dense, LSTM
+from sklearn.preprocessing import MinMaxScaler
 
-
-from pages.queries import get_netflix_stock_prices, get_stock_prices, get_netflix_releases
-
+from pages.queries import get_stock_prices, get_netflix_releases
 
 DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/movies_dev_db"
 engine = create_engine(DATABASE_URL)
@@ -21,87 +20,143 @@ Session = sessionmaker(bind=engine)
 
 dash.register_page(__name__)
 
-# Layout for the stock prices dashboard
 layout = html.Div([
     html.H1('Stock Prices Analytics'),
     dmc.Button('Update Charts', id='update-button', style={'margin': '10px'}),
     dmc.Grid([
         dmc.GridCol([dcc.Graph(id='line-chart')], span=6),
         dmc.GridCol([dcc.Graph(id='scatter-chart')], span=6),
-        dmc.GridCol([dcc.Graph(id='netflix-stock-prediction')], span=12),
+        dmc.GridCol([dcc.Graph(id='prediction-chart')], span=12),
     ], gutter="lg"),
 ])
 
 def match_release_to_price(release_date, stock_prices):
-    # Find the closest matching stock price date
     closest_date = stock_prices.loc[
         (stock_prices["Trade Time"] - release_date).abs().idxmin()
     ]
     return closest_date["Close"]
 
 def apply_vertical_offset(releases_df):
-    offset_increment = 5  # Define the vertical offset increment
+    offset_increment = 5
     grouped = releases_df.groupby("Release Date")
     for _, group in grouped:
-        if len(group) > 1:  # Check for overlaps
+        if len(group) > 1:
             offsets = range(0, len(group) * offset_increment, offset_increment)
             releases_df.loc[group.index, "Adjusted Stock Price"] = group["Stock Price"] + list(offsets)
         else:
             releases_df.loc[group.index, "Adjusted Stock Price"] = group["Stock Price"]
     return releases_df
 
-def train_stock_price_model(df):
-    # Prepare the features (X) and target (y)
-    X = df[['Trade Time Ordinal']]  # Use the ordinal time as the feature
-    y = df['Close']  # Target is the 'Close' price
+def normalize_data(data):
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    scaled_data = scaler.fit_transform(data)
+    return scaled_data, scaler
 
-    # Split the data into training and testing sets
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
+def create_dataset(data, time_step=1):
+    X, Y = [], []
+    for i in range(len(data) - time_step - 1):
+        a = data[i:(i + time_step), 0]
+        X.append(a)
+        Y.append(data[i + time_step, 0])
+    return np.array(X), np.array(Y)
 
-    # Initialize and train the model
-    model = LinearRegression()
-    model.fit(X_train, y_train)
-
-    # Evaluate the model (optional)
-    score = model.score(X_test, y_test)
-    print(f"Model R^2 score: {score}")
-
+def build_lstm_model(time_step):
+    model = Sequential()
+    model.add(LSTM(50, return_sequences=True, input_shape=(time_step, 1)))
+    model.add(LSTM(50, return_sequences=False))
+    model.add(Dense(25))
+    model.add(Dense(1))
+    model.compile(optimizer='adam', loss='mean_squared_error')
     return model
 
-def predict_future_stock_prices(model, df, days_to_predict=730):
-    # Get the last date from the dataset
-    last_date = df.index[-1]
-    last_ordinal = df['Trade Time Ordinal'].iloc[-1]
+def train_lstm_model(model, X_train, y_train):
+    model.fit(X_train, y_train, batch_size=1, epochs=1)
+    return model
 
-    # Generate future dates (ordinal)
-    future_dates = [last_ordinal + i for i in range(1, days_to_predict + 1)]
-    future_dates = np.array(future_dates).reshape(-1, 1)
+def make_predictions(model, X_train, X_test, scaler):
+    train_predict = model.predict(X_train)
+    test_predict = model.predict(X_test)
+    train_predict = scaler.inverse_transform(train_predict)
+    test_predict = scaler.inverse_transform(test_predict)
+    return train_predict, test_predict
 
-    # Make predictions
-    future_predictions = model.predict(future_dates)
+def forecast_future_prices(model, data, time_step, forecast_period, scaler):
+    future_predictions = []
+    last_data = data[-time_step:]
 
-    # Convert future ordinal dates back to datetime
-    future_dates_datetime = [datetime.date.fromordinal(int(i)) for i in future_dates.flatten()]
+    for _ in range(forecast_period):
+        last_data_scaled = scaler.transform(last_data.reshape(-1, 1))
+        X_input = last_data_scaled.reshape(1, time_step, 1)
+        next_pred = model.predict(X_input)
+        next_pred_rescaled = scaler.inverse_transform(next_pred)
+        future_predictions.append(next_pred_rescaled[0, 0])
+        last_data = np.append(last_data[1:], next_pred_rescaled)
 
-    # Return the predicted data
-    return pd.DataFrame({
-        'Date': future_dates_datetime,
-        'Predicted Close': future_predictions
-    })
+    return future_predictions
+
+def create_predictions_chart(scaled_data, train_predict, test_predict, future_predictions, time_step, scaler):
+    train_predict_plot = np.empty_like(scaled_data)
+    train_predict_plot[:, :] = np.nan
+    train_predict_plot[time_step:len(train_predict) + time_step, :] = train_predict
+
+    test_predict_plot = np.empty_like(scaled_data)
+    test_predict_plot[:, :] = np.nan
+    test_predict_plot[len(train_predict) + (time_step * 2) + 1:len(scaled_data) - 1, :] = test_predict
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=np.arange(len(scaled_data)),
+        y=scaler.inverse_transform(scaled_data).flatten(),
+        mode='lines',
+        name='Original Data'
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=np.arange(len(train_predict_plot)),
+        y=train_predict_plot.flatten(),
+        mode='lines',
+        name='Train Prediction'
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=np.arange(len(test_predict_plot)),
+        y=test_predict_plot.flatten(),
+        mode='lines',
+        name='Test Prediction'
+    ))
+
+    future_predict_plot = np.empty_like(scaled_data)
+    future_predict_plot[:, :] = np.nan
+    future_predict_plot = np.append(future_predict_plot, future_predictions)
+
+    fig.add_trace(go.Scatter(
+        x=np.arange(len(scaled_data), len(scaled_data) + len(future_predictions)),
+        y=future_predict_plot[len(scaled_data):],
+        mode='lines',
+        name='Future Prediction'
+    ))
+
+    # Update layout
+    fig.update_layout(
+        title="Stock Price Predictions",
+        xaxis_title="Time",
+        yaxis_title="Stock Price"
+    )
+
+    return fig
 
 @callback(
     Output('line-chart', 'figure'),
     Output('scatter-chart', 'figure'),
-    Output("netflix-stock-prediction", "figure"),
+    Output('prediction-chart', 'figure'),
     Input('update-button', 'n_clicks')
 )
-def update_charts(_):
+def update_charts(n_clicks):
     session = Session()
 
     stock_prices_df = get_stock_prices(session, "NFLX")
     stock_prices_df["Trade Time"] = pd.to_datetime(stock_prices_df["Trade Time"])
-
-   
 
     netflix_releases_df = get_netflix_releases(session)
     netflix_releases_df["Release Date"] = pd.to_datetime(netflix_releases_df["Released Year"], format='%Y')
@@ -127,7 +182,6 @@ def update_charts(_):
         name='Stock Price'
         )
     )
-
     scatter_chart_netflix_releases.add_trace(
         go.Scatter(
             x=netflix_releases_df["Release Date"],
@@ -140,39 +194,29 @@ def update_charts(_):
         )
     )
 
-    # Update layout
-    scatter_chart_netflix_releases.update_layout(
-        title="Netflix Releases Impact on Stock Prices",
-        xaxis_title="Time",
-        yaxis_title="Stock Price"
-    )
+    # Prepare data for prediction chart
+    df = stock_prices_df.set_index('Trade Time')
+    data = df[['Close']].values
+    scaled_data, scaler = normalize_data(data)
+    train_size = int(len(scaled_data) * 0.8)
+    train_data = scaled_data[:train_size]
+    test_data = scaled_data[train_size:]
 
-    stock_prices_df['Trade Time Ordinal'] = stock_prices_df['Trade Time'].apply(lambda x: x.toordinal())  # Convert to ordinal
-    stock_prices_df.set_index('Trade Time', inplace=True) 
-    model = train_stock_price_model(stock_prices_df)
-    forecast = predict_future_stock_prices(model, stock_prices_df)
+    time_step = 60
+    X_train, y_train = create_dataset(train_data, time_step)
+    X_test, y_test = create_dataset(test_data, time_step)
 
-    scatter_chart_netflix_releases_with_prediction = go.Figure()
+    X_train = X_train.reshape(X_train.shape[0], X_train.shape[1], 1)
+    X_test = X_test.reshape(X_test.shape[0], X_test.shape[1], 1)
 
-    scatter_chart_netflix_releases_with_prediction.add_trace(
-        go.Scatter(
-            x=stock_prices_df.index,
-            y=stock_prices_df['Close'],
-            mode='lines',
-            name='Historical Stock Price'
-        )
-    )
+    model = build_lstm_model(time_step)
+    model = train_lstm_model(model, X_train, y_train)
 
-    # Add predicted stock prices as a dashed line
-    scatter_chart_netflix_releases_with_prediction.add_trace(
-        go.Scatter(
-            x=forecast['Date'],
-            y=forecast['Predicted Close'],
-            mode='lines',
-            name='Predicted Stock Price',
-            line=dict(dash='dash')
-        )
-    )
+    train_predict, test_predict = make_predictions(model, X_train, X_test, scaler)
 
+    forecast_period = 252
+    future_predictions = forecast_future_prices(model, data, time_step, forecast_period, scaler)
 
-    return line_chart, scatter_chart_netflix_releases, scatter_chart_netflix_releases_with_prediction
+    prediction_chart = create_predictions_chart(scaled_data, train_predict, test_predict, future_predictions, time_step, scaler)
+
+    return line_chart, scatter_chart_netflix_releases, prediction_chart

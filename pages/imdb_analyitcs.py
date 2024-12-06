@@ -68,8 +68,8 @@ def update_charts(_, show_only_netflix, selected_tab):
     pie_chart = px.pie(
         pie_data,
         names="Genre",
-        values="Movie Count",
-        title="Genre Distribution for Netflix Originals"
+        values="Movie or TV Show Count",
+        title="Genre Distribution"
     )
     pie_chart.update_traces(textposition='inside', textinfo='percent+label')
     
@@ -86,7 +86,7 @@ def update_charts(_, show_only_netflix, selected_tab):
     ratings_distribution_chart = px.histogram(ratings_data, x="Rating", nbins=20, title="IMDb Rating Distribution")
 
     categories_by_runtime_data = get_categories_by_runtime(session, show_only_netflix, selected_tab)
-    categories_by_runtime_chart = px.bar(categories_by_runtime_data, x="Genre", y="Average Runtime (Minutes)", title="Genres by average Runtime")
+    categories_by_runtime_chart = px.bar(categories_by_runtime_data, x="Genre", y="Average Runtime (Minutes)", title="Average runtime by genres")
 
     netflix_avg_rating_by_category = get_avg_ratings_by_genre(session, selected_tab)
     active_trace = go.Bar(

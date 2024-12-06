@@ -76,15 +76,18 @@ def normalize_and_clean_title(title):
     title = title.replace("theseries", "").replace("themovie", "")
     return title
 
+# Load cancelled shows
 cancelled_shows = pd.read_csv(netflix_canceled_shows_path)
 cancelled_shows['title_cleaned'] = cancelled_shows['Title'].apply(normalize_and_clean_title)
 cancelled_titles_set = set(cancelled_shows['title_cleaned'])
 
 df = pd.read_json(FILE_TO_CLEAN_PATH)
 
+# Keep only the columns we need
 columns_to_keep = ['title', 'type', 'titlereleased', 'netflixid', 'category', 'date_released']
 df = df[columns_to_keep]
 
+# Remove unwanted text from title and narrow date 
 df = df[~df['titlereleased'].str.contains("Limited Series", na=False)]
 df['title'] = df['title'].apply(lambda x: x.rstrip() if isinstance(x, str) else x)
 df['title_cleaned'] = df['title'].apply(normalize_and_clean_title)
@@ -97,7 +100,10 @@ df['titlereleased'] = df['titlereleased'].apply(lambda x: x[:4] if isinstance(x,
 
 df['category'] = df['category'].apply(normalize_genre)
 
+# Set to cancelled if title is in cancelled shows
 df['cancelled'] = df['title_cleaned'].apply(lambda x: x in cancelled_titles_set)
+
+# Rename columns to match IMDb data
 df['type'] = df['type'].apply(lambda x: 'movie' if x == "Movie" else 'tvSeries' if x == "TV" else x)
 
 df.to_json(CLEANED_FILE_PATH, orient='records', indent=4, force_ascii=False)

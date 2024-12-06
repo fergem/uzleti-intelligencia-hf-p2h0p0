@@ -1,8 +1,6 @@
 volumes:
   pgdata:
   pgadmin-data:
-  esdata:
-  kibana-data:
 
 networks:
   movies_dev_db_network:
@@ -36,3 +34,15 @@ services:
       - pgadmin-data:/var/lib/pgadmin
     networks:
       - movies_dev_db_network
+
+  # web_dash_board:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: web-dashboard
+  #   networks:
+  #     - movies_dev_db_network
+  #   ports:
+  #     - "5000:8080"
+  #   depends_on:
+  #     - postgres-db

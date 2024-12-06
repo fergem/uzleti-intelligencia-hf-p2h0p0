@@ -1,4 +1,8 @@
 etl/datasets
 etl/etl
 etl/output
-__pycache__
+**/__pycache__/
+.vscode
+.venv
+**/.vnev/
+**/.pytest_cache/

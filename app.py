@@ -20,7 +20,7 @@ app.layout = dmc.MantineProvider(
     dmc.AppShell(
         [
             dmc.AppShellNavbar([
-                dmc.Title(f"Máté's movie reporting page", order=2, bd="xl", c="cyan", ta="center", mb="sm"),
+                dmc.Title(f"Máté's movie and tv show reporting page", order=2, bd="xl", ta="center", mb="sm"),
                 dmc.Flex(
                     [dmc.Flex(dmc.Button(
                         "Load data from database",
@@ -79,3 +79,4 @@ def load_from_db(n_clicks):
     
 if __name__ == "__main__":
     app.run(debug=True)
+    #app.run_server(debug=True, host='0.0.0.0', port=8080)
